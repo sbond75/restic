@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/restic/restic/internal/archiver"
-	"github.com/restic/restic/internal/fs"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/ui/progress"
 )
