@@ -206,7 +206,7 @@ func TestArchiverSnapshotWithAds(t *testing.T) {
 				targets = append(targets, os.ExpandEnv(target))
 			}
 
-			sn, snapshotID, err := arch.Snapshot(ctx, targets, SnapshotOptions{Time: time.Now(), Excludes: test.exclude})
+			sn, snapshotID, _, err := arch.Snapshot(ctx, targets, SnapshotOptions{Time: time.Now(), Excludes: test.exclude})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -220,7 +220,7 @@ func TestArchiverSnapshotWithAds(t *testing.T) {
 
 			TestEnsureSnapshot(t, repo, snapshotID, want)
 
-			checker.TestCheckRepo(t, repo)
+			checker.TestCheckRepo(t, repo, false)
 
 			// check that the snapshot contains the targets with absolute paths
 			for i, target := range sn.Paths {

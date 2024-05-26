@@ -230,7 +230,7 @@ func setupWithFileAttributes(t *testing.T, nodeInfo NodeInfo, testDir string, ex
 		index++
 		streams = append(streams, nodeInfo.DataStreamInfo)
 	}
-	return setup(t, getNodes(nodeInfo.parentDir, nodeInfo.name, order, streams, nodeInfo.IsDirectory, &nodeInfo.attributes)), order
+	return setup2(t, getNodes(nodeInfo.parentDir, nodeInfo.name, order, streams, nodeInfo.IsDirectory, &nodeInfo.attributes)), order
 }
 
 func createEncryptedFileWriteData(filepath string, fileInfo NodeInfo) (err error) {
@@ -251,7 +251,7 @@ func createEncryptedFileWriteData(filepath string, fileInfo NodeInfo) (err error
 	return windows.CloseHandle(handle)
 }
 
-func setup(t *testing.T, nodesMap map[string]Node) *Restorer {
+func setup2(t *testing.T, nodesMap map[string]Node) *Restorer {
 	repo := repository.TestRepository(t)
 	getFileAttributes := func(attr *FileAttributes, isDir bool) (genericAttributes map[restic.GenericAttributeType]json.RawMessage) {
 		if attr == nil {
@@ -750,7 +750,7 @@ func saveDirOrdered(t testing.TB, repo restic.Repository, namedNodes []NamedNode
 			})
 			rtest.OK(t, err)
 		case Dir:
-			id := saveDir(t, repo, node.Nodes, inode)
+			id := saveDir(t, repo, node.Nodes, inode, nil)
 
 			mode := node.Mode
 			if mode == 0 {
