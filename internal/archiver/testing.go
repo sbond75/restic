@@ -86,11 +86,10 @@ func TestCreateFiles(t testing.TB, target string, dir TestDir) {
 
 	for _, name := range names {
 		item := dir[name]
-		targetPath := filepath.Join(target, name)
 
 		switch it := item.(type) {
 		case TestFile:
-			err := os.WriteFile(targetPath, []byte(it.Content), 0644)
+			err := writeFile(t, targetPath, it.Content)
 			if err != nil {
 				t.Fatal(err)
 			}
