@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"reflect"
 	"testing"
 
@@ -122,7 +123,37 @@ func SetupTarTestFixture(t testing.TB, outputDir, tarFile string) {
 		rd = input
 	}
 
-	cmd := exec.Command("tar", "xf", "-")
+	// Get program from current directory if possible (for Windows).
+	var cmdPath string
+	if runtime.GOOS == "windows" {
+		var err error
+		cmd := "tar.exe" // Local tar.exe from .github/workflows/tests.yml gotten from `Invoke-WebRequest https://github.com/restic/test-assets/raw/master/tar-1.13-1-bin.zip -OutFile tar.zip` and then bin/tar.exe in the zip file.
+		cmdPath, err = filepath.Abs(cmd)
+		if err != nil {
+			t.Fatalf("finding absolute path of command %v failed: %v", cmd, err)
+		}
+		
+		// path, err := exec.LookPath(cmdPath)
+		// if errors.Is(err, exec.ErrDot) {
+		// 	// Indicates that the file was found in the current directory.
+		// 	err = nil
+		// }
+		// if err != nil {
+		// 	t.Fatalf("finding command %v failed: %v", cmdPath, err)
+		// }
+		// cmdPath = path
+	} else {
+		cmdPath = "tar"
+	}
+	if _, err := os.Stat(cmdPath); err != nil {
+		t.Fatalf("finding command %v failed: %v", cmdPath, err)
+	}
+	
+	cmd := exec.Command(cmdPath, "xf", "-")
+	// if errors.Is(cmd.Err, exec.ErrDot) {
+	// 	cmd.Err = nil
+	// }
+	
 	cmd.Dir = outputDir
 
 	cmd.Stdin = rd
