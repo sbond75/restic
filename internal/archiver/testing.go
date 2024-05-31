@@ -86,7 +86,8 @@ func TestCreateFiles(t testing.TB, target string, dir TestDir) {
 
 	for _, name := range names {
 		item := dir[name]
-		targetPath := filepath.Join(target, name)
+		//targetPath := filepath.Join(target, name)
+		targetPath := getTargetPath(target, name)
 
 		switch it := item.(type) {
 		case TestFile:
