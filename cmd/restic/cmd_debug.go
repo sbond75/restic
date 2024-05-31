@@ -490,6 +490,8 @@ func examinePack(ctx context.Context, opts DebugExamineOptions, repo restic.Repo
 	Printf("  ========================================\n")
 	Printf("  looking for info in the indexes\n")
 
+	var encrypt bool = repo.Encrypted()
+	
 	blobsLoaded := false
 	// examine all data the indexes have for the pack file
 	for b := range repo.ListPacksFromIndex(ctx, restic.NewIDSet(id)) {
@@ -498,7 +500,7 @@ func examinePack(ctx context.Context, opts DebugExamineOptions, repo restic.Repo
 			continue
 		}
 
-		checkPackSize(blobs, len(buf))
+		checkPackSize(blobs, len(buf), encrypt)
 
 		err = loadBlobs(ctx, opts, repo, id, blobs)
 		if err != nil {
@@ -515,7 +517,7 @@ func examinePack(ctx context.Context, opts DebugExamineOptions, repo restic.Repo
 	if err != nil {
 		return fmt.Errorf("pack %v: %v", id.Str(), err)
 	}
-	checkPackSize(blobs, len(buf))
+	checkPackSize(blobs, len(buf), encrypt)
 
 	if !blobsLoaded {
 		return loadBlobs(ctx, opts, repo, id, blobs)
@@ -523,7 +525,7 @@ func examinePack(ctx context.Context, opts DebugExamineOptions, repo restic.Repo
 	return nil
 }
 
-func checkPackSize(blobs []restic.Blob, fileSize int) {
+func checkPackSize(blobs []restic.Blob, fileSize int, encrypt bool) {
 	// track current size and offset
 	var size, offset uint64
 
@@ -539,7 +541,7 @@ func checkPackSize(blobs []restic.Blob, fileSize int) {
 		offset = uint64(pb.Offset + pb.Length)
 		size += uint64(pb.Length)
 	}
-	size += uint64(pack.CalculateHeaderSize(blobs))
+	size += uint64(pack.CalculateHeaderSize(blobs, encrypt))
 
 	if uint64(fileSize) != size {
 		Printf("      file sizes do not match: computed %v, file size is %v\n", size, fileSize)
