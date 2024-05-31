@@ -57,6 +57,7 @@ type Options struct {
 	Compression   CompressionMode
 	PackSize      uint
 	NoExtraVerify bool
+	Unencrypted   bool
 }
 
 // CompressionMode configures if data should be compressed.
@@ -171,8 +172,14 @@ func (r *Repository) LoadUnpacked(ctx context.Context, t restic.FileType, id res
 		return nil, err
 	}
 
-	nonce, ciphertext := buf[:r.key.NonceSize()], buf[r.key.NonceSize():]
-	plaintext, err := r.key.Open(ciphertext[:0], nonce, ciphertext, nil)
+	var encrypt bool = !r.opts.Unencrypted // `encrypt`: whether to encrypt the data or save it as (possibly compressed) plaintext.
+	var plaintext []byte
+	if encrypt {
+		nonce, ciphertext := buf[:r.key.NonceSize()], buf[r.key.NonceSize():]
+		plaintext, err = r.key.Open(ciphertext[:0], nonce, ciphertext, nil)
+	} else {
+		plaintext = buf
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -455,12 +462,20 @@ func (r *Repository) SaveUnpacked(ctx context.Context, t restic.FileType, buf []
 		}
 	}
 
-	ciphertext := crypto.NewBlobBuffer(len(p))
-	ciphertext = ciphertext[:0]
-	nonce := crypto.NewRandomNonce()
-	ciphertext = append(ciphertext, nonce...)
+	var encrypt bool = !r.opts.Unencrypted // `encrypt`: whether to encrypt the data or save it as (possibly compressed) plaintext.
+	var ciphertext []byte // May or may not be encrypted, depends on `encrypt`.
+	if encrypt {
+		ciphertext = crypto.NewBlobBuffer(len(p))
+		ciphertext = ciphertext[:0]
+		nonce := crypto.NewRandomNonce()
+		ciphertext = append(ciphertext, nonce...)
 
-	ciphertext = r.key.Seal(ciphertext, nonce, p, nil)
+		////////////////////// Probably encrypts it //////////////////////
+		ciphertext = r.key.Seal(ciphertext, nonce, p, nil)
+		//////////////////////                      //////////////////////
+	} else {
+		ciphertext = p
+	}
 
 	if err := r.verifyUnpacked(ciphertext, t, buf); err != nil {
 		//nolint:revive // ignore linter warnings about error message spelling
@@ -484,15 +499,23 @@ func (r *Repository) SaveUnpacked(ctx context.Context, t restic.FileType, buf []
 	return id, nil
 }
 
+// `encrypt`: whether `buf` is encrypted.
 func (r *Repository) verifyUnpacked(buf []byte, t restic.FileType, expected []byte) error {
 	if r.opts.NoExtraVerify {
 		return nil
 	}
 
-	nonce, ciphertext := buf[:r.key.NonceSize()], buf[r.key.NonceSize():]
-	plaintext, err := r.key.Open(nil, nonce, ciphertext, nil)
-	if err != nil {
-		return fmt.Errorf("decryption failed: %w", err)
+	var encrypt bool = !r.opts.Unencrypted // `encrypt`: whether to encrypt the data or save it as (possibly compressed) plaintext.
+	var plaintext []byte
+	var err error
+	if encrypt {
+		nonce, ciphertext := buf[:r.key.NonceSize()], buf[r.key.NonceSize():]
+		plaintext, err = r.key.Open(nil, nonce, ciphertext, nil)
+		if err != nil {
+			return fmt.Errorf("decryption failed: %w", err)
+		}
+	} else {
+		plaintext = buf
 	}
 	if t != restic.ConfigFile {
 		plaintext, err = r.decompressUnpacked(plaintext)
@@ -756,7 +779,7 @@ func (r *Repository) SearchKey(ctx context.Context, password string, maxKeys int
 
 // Init creates a new master key with the supplied password, initializes and
 // saves the repository config.
-func (r *Repository) Init(ctx context.Context, version uint, password string, chunkerPolynomial *chunker.Pol) error {
+func (r *Repository) Init(ctx context.Context, version uint, password string, chunkerPolynomial *chunker.Pol, encrypt bool) error {
 	if version > restic.MaxRepoVersion {
 		return fmt.Errorf("repository version %v too high", version)
 	}
@@ -773,7 +796,7 @@ func (r *Repository) Init(ctx context.Context, version uint, password string, ch
 		return errors.New("repository master key and config already initialized")
 	}
 
-	cfg, err := restic.CreateConfig(version)
+	cfg, err := restic.CreateConfig(version, encrypt)
 	if err != nil {
 		return err
 	}

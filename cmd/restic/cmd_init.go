@@ -92,15 +92,17 @@ func runInit(ctx context.Context, opts InitOptions, gopts GlobalOptions, args []
 		return errors.Fatalf("create repository at %s failed: %v\n", location.StripPassword(gopts.backends, gopts.Repo), err)
 	}
 
+	var encrypt bool = !gopts.InsecureUnencrypted
 	s, err := repository.New(be, repository.Options{
 		Compression: gopts.Compression,
 		PackSize:    gopts.PackSize * 1024 * 1024,
+		Unencrypted: !encrypt,
 	})
 	if err != nil {
 		return errors.Fatal(err.Error())
 	}
 
-	err = s.Init(ctx, version, gopts.password, chunkerPolynomial)
+	err = s.Init(ctx, version, gopts.password, chunkerPolynomial, encrypt)
 	if err != nil {
 		return errors.Fatalf("create key in repository at %s failed: %v\n", location.StripPassword(gopts.backends, gopts.Repo), err)
 	}

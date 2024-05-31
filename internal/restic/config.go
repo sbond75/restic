@@ -33,7 +33,7 @@ type JSONUnpackedLoader interface {
 
 // CreateConfig creates a config file with a randomly selected polynomial and
 // ID.
-func CreateConfig(version uint) (Config, error) {
+func CreateConfig(version uint, encrypt bool) (Config, error) {
 	var (
 		err error
 		cfg Config

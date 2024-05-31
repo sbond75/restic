@@ -30,7 +30,7 @@ func testRunBackupAssumeFailure(t testing.TB, dir string, target []string, opts 
 
 func testRunBackup(t testing.TB, dir string, target []string, opts BackupOptions, gopts GlobalOptions) {
 	err := testRunBackupAssumeFailure(t, dir, target, opts, gopts)
-	rtest.Assert(t, err == nil, "Error while backing up")
+	rtest.Assert(t, err == nil, fmt.Sprintf("Error while backing up: %s", err))
 }
 
 func TestBackup(t *testing.T) {

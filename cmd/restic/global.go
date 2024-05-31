@@ -52,23 +52,24 @@ type backendWrapper func(r backend.Backend) (backend.Backend, error)
 
 // GlobalOptions hold all global options for restic.
 type GlobalOptions struct {
-	Repo               string
-	RepositoryFile     string
-	PasswordFile       string
-	PasswordCommand    string
-	KeyHint            string
-	Quiet              bool
-	Verbose            int
-	NoLock             bool
-	RetryLock          time.Duration
-	JSON               bool
-	CacheDir           string
-	NoCache            bool
-	CleanupCache       bool
-	Compression        repository.CompressionMode
-	PackSize           uint
-	NoExtraVerify      bool
-	InsecureNoPassword bool
+	Repo                string
+	RepositoryFile      string
+	PasswordFile        string
+	PasswordCommand     string
+	KeyHint             string
+	Quiet               bool
+	Verbose             int
+	NoLock              bool
+	RetryLock           time.Duration
+	JSON                bool
+	CacheDir            string
+	NoCache             bool
+	CleanupCache        bool
+	Compression         repository.CompressionMode
+	PackSize            uint
+	NoExtraVerify       bool
+	InsecureNoPassword  bool
+	InsecureUnencrypted bool
 
 	backend.TransportOptions
 	limiter.Limits
@@ -127,6 +128,7 @@ func init() {
 	f.StringSliceVar(&globalOptions.RootCertFilenames, "cacert", nil, "`file` to load root certificates from (default: use system certificates or $RESTIC_CACERT)")
 	f.StringVar(&globalOptions.TLSClientCertKeyFilename, "tls-client-cert", "", "path to a `file` containing PEM encoded TLS client certificate and private key (default: $RESTIC_TLS_CLIENT_CERT)")
 	f.BoolVar(&globalOptions.InsecureNoPassword, "insecure-no-password", false, "use an empty password for the repository, must be passed to every restic command (insecure)")
+	f.BoolVar(&globalOptions.InsecureUnencrypted, "insecure-unencrypted", false, "the repository will be unencrypted (password option becomes meaningless), must be passed to every restic command (insecure)")
 	f.BoolVar(&globalOptions.InsecureTLS, "insecure-tls", false, "skip TLS certificate verification when connecting to the repository (insecure)")
 	f.BoolVar(&globalOptions.CleanupCache, "cleanup-cache", false, "auto remove old cache directories")
 	f.Var(&globalOptions.Compression, "compression", "compression mode (only available for repository format version 2), one of (auto|off|max) (default: $RESTIC_COMPRESSION)")
@@ -444,10 +446,12 @@ func OpenRepository(ctx context.Context, opts GlobalOptions) (*repository.Reposi
 		}
 	}
 
+	var encrypt bool = !opts.InsecureUnencrypted
 	s, err := repository.New(be, repository.Options{
 		Compression:   opts.Compression,
 		PackSize:      opts.PackSize * 1024 * 1024,
 		NoExtraVerify: opts.NoExtraVerify,
+		Unencrypted:   !encrypt,
 	})
 	if err != nil {
 		return nil, errors.Fatal(err.Error())
@@ -458,30 +462,32 @@ func OpenRepository(ctx context.Context, opts GlobalOptions) (*repository.Reposi
 		passwordTriesLeft = 3
 	}
 
-	for ; passwordTriesLeft > 0; passwordTriesLeft-- {
-		opts.password, err = ReadPassword(ctx, opts, "enter password for repository: ")
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		if err != nil && passwordTriesLeft > 1 {
-			opts.password = ""
-			fmt.Printf("%s. Try again\n", err)
+	if encrypt {
+		for ; passwordTriesLeft > 0; passwordTriesLeft-- {
+			opts.password, err = ReadPassword(ctx, opts, "enter password for repository: ")
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			if err != nil && passwordTriesLeft > 1 {
+				opts.password = ""
+				fmt.Printf("%s. Try again\n", err)
+			}
+			if err != nil {
+				continue
+			}
+
+			err = s.SearchKey(ctx, opts.password, maxKeys, opts.KeyHint)
+			if err != nil && passwordTriesLeft > 1 {
+				opts.password = ""
+				fmt.Fprintf(os.Stderr, "%s. Try again\n", err)
+			}
 		}
 		if err != nil {
-			continue
+			if errors.IsFatal(err) {
+				return nil, err
+			}
+			return nil, errors.Fatalf("%s", err)
 		}
-
-		err = s.SearchKey(ctx, opts.password, maxKeys, opts.KeyHint)
-		if err != nil && passwordTriesLeft > 1 {
-			opts.password = ""
-			fmt.Fprintf(os.Stderr, "%s. Try again\n", err)
-		}
-	}
-	if err != nil {
-		if errors.IsFatal(err) {
-			return nil, err
-		}
-		return nil, errors.Fatalf("%s", err)
 	}
 
 	if stdoutIsTerminal() && !opts.JSON {
