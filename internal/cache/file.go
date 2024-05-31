@@ -38,7 +38,7 @@ func (c *Cache) canBeCached(t backend.FileType) bool {
 // ReadCloser is nil. The bool return value indicates whether the requested
 // file exists in the cache. It can be true even when no reader is returned
 // because length or offset are out of bounds
-func (c *Cache) load(h backend.Handle, length int, offset int64) (io.ReadCloser, bool, error) {
+func (c *Cache) load(h backend.Handle, length int, offset int64, encrypt bool) (io.ReadCloser, bool, error) {
 	debug.Log("Load(%v, %v, %v) from cache", h, length, offset)
 	if !c.canBeCached(h.Type) {
 		return nil, false, errors.New("cannot be cached")
@@ -56,7 +56,7 @@ func (c *Cache) load(h backend.Handle, length int, offset int64) (io.ReadCloser,
 	}
 
 	size := fi.Size()
-	if size <= int64(crypto.CiphertextLength(0)) {
+	if size <= int64(crypto.CiphertextLength(0, encrypt)) {
 		_ = f.Close()
 		return nil, true, errors.Errorf("cached file %v is truncated", h)
 	}
@@ -80,7 +80,7 @@ func (c *Cache) load(h backend.Handle, length int, offset int64) (io.ReadCloser,
 }
 
 // save saves a file in the cache.
-func (c *Cache) save(h backend.Handle, rd io.Reader) error {
+func (c *Cache) save(h backend.Handle, rd io.Reader, encrypt bool) error {
 	debug.Log("Save to cache: %v", h)
 	if rd == nil {
 		return errors.New("Save() called with nil reader")
@@ -110,7 +110,7 @@ func (c *Cache) save(h backend.Handle, rd io.Reader) error {
 		return errors.Wrap(err, "Copy")
 	}
 
-	if n <= int64(crypto.CiphertextLength(0)) {
+	if n <= int64(crypto.CiphertextLength(0, encrypt)) {
 		_ = f.Close()
 		_ = fs.Remove(f.Name())
 		debug.Log("trying to cache truncated file %v, removing", h)

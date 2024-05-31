@@ -127,7 +127,8 @@ func testLoadBlob(t *testing.T, version uint) {
 	rtest.OK(t, err)
 	rtest.OK(t, repo.Flush(context.Background()))
 
-	base := crypto.CiphertextLength(length)
+	var encrypt bool = true
+	base := crypto.CiphertextLength(length, encrypt)
 	for _, testlength := range []int{0, base - 20, base - 1, base, base + 7, base + 15, base + 1000} {
 		buf = make([]byte, 0, testlength)
 		buf, err := repo.LoadBlob(context.TODO(), restic.DataBlob, id, buf)

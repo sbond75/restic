@@ -468,6 +468,7 @@ func TestStreamPackFallback(t *testing.T) {
 	}
 	defer dec.Close()
 
+	var encrypt bool = true
 	test := func(t *testing.T, failLoad bool) {
 		key := testKey(t)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -477,7 +478,7 @@ func TestStreamPackFallback(t *testing.T) {
 		blobID := restic.Hash(plaintext)
 		blobs := []restic.Blob{
 			{
-				Length: uint(crypto.CiphertextLength(len(plaintext))),
+				Length: uint(crypto.CiphertextLength(len(plaintext), encrypt)),
 				Offset: 0,
 				BlobHandle: restic.BlobHandle{
 					ID:   blobID,

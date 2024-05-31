@@ -19,16 +19,19 @@ type Backend struct {
 	// is finished.
 	inProgressMutex sync.Mutex
 	inProgress      map[backend.Handle]chan struct{}
+
+	Unencrypted     bool
 }
 
 // ensure Backend implements backend.Backend
 var _ backend.Backend = &Backend{}
 
-func newBackend(be backend.Backend, c *Cache) *Backend {
+func newBackend(be backend.Backend, c *Cache, encrypt bool) *Backend {
 	return &Backend{
 		Backend:    be,
 		Cache:      c,
 		inProgress: make(map[backend.Handle]chan struct{}),
+		Unencrypted: !encrypt,
 	}
 }
 
@@ -79,8 +82,9 @@ func (b *Backend) Save(ctx context.Context, h backend.Handle, rd backend.RewindR
 	if err != nil {
 		return err
 	}
-
-	err = b.Cache.save(h, rd)
+	
+	var encrypt bool = !b.Unencrypted
+	err = b.Cache.save(h, rd, encrypt)
 	if err != nil {
 		debug.Log("unable to save %v to cache: %v", h, err)
 		return err
@@ -119,8 +123,9 @@ func (b *Backend) cacheFile(ctx context.Context, h backend.Handle) error {
 	// test again, maybe the file was cached in the meantime
 	if !b.Cache.Has(h) {
 		// nope, it's still not in the cache, pull it from the repo and save it
+		var encrypt bool = !b.Unencrypted
 		err := b.Backend.Load(ctx, h, 0, 0, func(rd io.Reader) error {
-			return b.Cache.save(h, rd)
+			return b.Cache.save(h, rd, encrypt)
 		})
 		if err != nil {
 			// try to remove from the cache, ignore errors
@@ -134,7 +139,8 @@ func (b *Backend) cacheFile(ctx context.Context, h backend.Handle) error {
 
 // loadFromCache will try to load the file from the cache.
 func (b *Backend) loadFromCache(h backend.Handle, length int, offset int64, consumer func(rd io.Reader) error) (bool, error) {
-	rd, inCache, err := b.Cache.load(h, length, offset)
+	var encrypt bool = !b.Unencrypted
+	rd, inCache, err := b.Cache.load(h, length, offset, encrypt)
 	if err != nil {
 		return inCache, err
 	}

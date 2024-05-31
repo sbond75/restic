@@ -151,7 +151,8 @@ func (r *Repository) UseCache(c *cache.Cache) {
 	}
 	debug.Log("using cache")
 	r.Cache = c
-	r.be = c.Wrap(r.be)
+	var encrypt bool = !r.opts.Unencrypted
+	r.be = c.Wrap(r.be, encrypt)
 }
 
 // SetDryRun sets the repo backend into dry-run mode.
@@ -369,7 +370,7 @@ func (r *Repository) saveAndEncrypt(ctx context.Context, t restic.BlobType, data
 	if encrypt {
 		nonce := crypto.NewRandomNonce()
 
-		ciphertext = make([]byte, 0, crypto.CiphertextLength(len(data)))
+		ciphertext = make([]byte, 0, crypto.CiphertextLength(len(data), encrypt))
 		ciphertext = append(ciphertext, nonce...)
 
 		// encrypt blob
@@ -1157,11 +1158,17 @@ func (b *packBlobIterator) Next() (packBlobValue, error) {
 		return packBlobValue{}, fmt.Errorf("invalid blob length %v", entry)
 	}
 
-	// decryption errors are likely permanent, give the caller a chance to skip them
-	nonce, ciphertext := buf[:b.key.NonceSize()], buf[b.key.NonceSize():]
-	plaintext, err := b.key.Open(ciphertext[:0], nonce, ciphertext, nil)
-	if err != nil {
-		err = fmt.Errorf("decrypting blob %v from %v failed: %w", h, b.packID.Str(), err)
+	var encrypt bool = b.key != nil
+	var plaintext []byte
+	if encrypt {
+		// decryption errors are likely permanent, give the caller a chance to skip them
+		nonce, ciphertext := buf[:b.key.NonceSize()], buf[b.key.NonceSize():]
+		plaintext, err = b.key.Open(ciphertext[:0], nonce, ciphertext, nil)
+		if err != nil {
+			err = fmt.Errorf("decrypting blob %v from %v failed: %w", h, b.packID.Str(), err)
+		}
+	} else {
+		plaintext = buf
 	}
 	if err == nil && entry.IsCompressed() {
 		// DecodeAll will allocate a slice if it is not large enough since it

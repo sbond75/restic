@@ -83,7 +83,7 @@ func (p *Packer) Finalize() error {
 	var encrypt bool = p.k != nil
 	var encryptedHeader []byte
 	if encrypt {
-		encryptedHeader = make([]byte, 0, crypto.CiphertextLength(len(header)))
+		encryptedHeader = make([]byte, 0, crypto.CiphertextLength(len(header), encrypt))
 		nonce := crypto.NewRandomNonce()
 		encryptedHeader = append(encryptedHeader, nonce...)
 		encryptedHeader = p.k.Seal(encryptedHeader, nonce, header, nil)
@@ -135,7 +135,9 @@ func verifyHeader(k *crypto.Key, header []byte, expected []restic.Blob) error {
 
 // HeaderOverhead returns an estimate of the number of bytes written by a call to Finalize.
 func (p *Packer) HeaderOverhead() int {
-	return crypto.CiphertextLength(0) + binary.Size(uint32(0))
+	var encrypt bool = p.k != nil
+	var baseLen = crypto.CiphertextLength(0, encrypt)
+	return baseLen + binary.Size(uint32(0))
 }
 
 // makeHeader constructs the header for p.
@@ -335,7 +337,7 @@ func List(k *crypto.Key, rd io.ReaderAt, size int64) (entries []restic.Blob, hdr
 		return nil, 0, err
 	}
 
-	if encrypt && len(buf) < crypto.CiphertextLength(0) {
+	if len(buf) < crypto.CiphertextLength(0, encrypt) {
 		return nil, 0, errors.New("invalid header, too short")
 	}
 

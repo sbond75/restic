@@ -130,10 +130,12 @@ func runStats(ctx context.Context, opts StatsOptions, gopts GlobalOptions, args 
 			}
 			stats.TotalSize += uint64(pbs[0].Length)
 			if repo.Config().Version >= 2 {
-				stats.TotalUncompressedSize += uint64(crypto.CiphertextLength(int(pbs[0].DataLength())))
+				var encrypt bool = repo.Encrypted()
+				baseLen := crypto.CiphertextLength(int(pbs[0].DataLength()), encrypt)
+				stats.TotalUncompressedSize += uint64(baseLen)
 				if pbs[0].IsCompressed() {
 					stats.TotalCompressedBlobsSize += uint64(pbs[0].Length)
-					stats.TotalCompressedBlobsUncompressedSize += uint64(crypto.CiphertextLength(int(pbs[0].DataLength())))
+					stats.TotalCompressedBlobsUncompressedSize += uint64(baseLen)
 				}
 			}
 			stats.TotalBlobCount++

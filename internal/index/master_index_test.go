@@ -17,6 +17,7 @@ import (
 )
 
 func TestMasterIndex(t *testing.T) {
+	var encrypt bool = true
 	bhInIdx1 := restic.NewRandomBlobHandle()
 	bhInIdx2 := restic.NewRandomBlobHandle()
 	bhInIdx12 := restic.BlobHandle{ID: restic.NewRandomID(), Type: restic.TreeBlob}
@@ -25,7 +26,7 @@ func TestMasterIndex(t *testing.T) {
 		PackID: restic.NewRandomID(),
 		Blob: restic.Blob{
 			BlobHandle: bhInIdx1,
-			Length:     uint(crypto.CiphertextLength(10)),
+			Length:     uint(crypto.CiphertextLength(10, encrypt)),
 			Offset:     0,
 		},
 	}
@@ -34,7 +35,7 @@ func TestMasterIndex(t *testing.T) {
 		PackID: restic.NewRandomID(),
 		Blob: restic.Blob{
 			BlobHandle:         bhInIdx2,
-			Length:             uint(crypto.CiphertextLength(100)),
+			Length:             uint(crypto.CiphertextLength(100, encrypt)),
 			Offset:             10,
 			UncompressedLength: 200,
 		},
@@ -44,7 +45,7 @@ func TestMasterIndex(t *testing.T) {
 		PackID: restic.NewRandomID(),
 		Blob: restic.Blob{
 			BlobHandle:         bhInIdx12,
-			Length:             uint(crypto.CiphertextLength(123)),
+			Length:             uint(crypto.CiphertextLength(123, encrypt)),
 			Offset:             110,
 			UncompressedLength: 80,
 		},
@@ -54,7 +55,7 @@ func TestMasterIndex(t *testing.T) {
 		PackID: restic.NewRandomID(),
 		Blob: restic.Blob{
 			BlobHandle:         bhInIdx12,
-			Length:             uint(crypto.CiphertextLength(123)),
+			Length:             uint(crypto.CiphertextLength(123, encrypt)),
 			Offset:             50,
 			UncompressedLength: 80,
 		},

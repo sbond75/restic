@@ -18,13 +18,13 @@ func (n *noopSaver) SaveUnpacked(ctx context.Context, t restic.FileType, buf []b
 	return restic.Hash(buf), nil
 }
 
-func makeFakePackedBlob() (restic.BlobHandle, restic.PackedBlob) {
+func makeFakePackedBlob(encrypt bool) (restic.BlobHandle, restic.PackedBlob) {
 	bh := restic.NewRandomBlobHandle()
 	blob := restic.PackedBlob{
 		PackID: restic.NewRandomID(),
 		Blob: restic.Blob{
 			BlobHandle: bh,
-			Length:     uint(crypto.CiphertextLength(10)),
+			Length:     uint(crypto.CiphertextLength(10, encrypt)),
 			Offset:     0,
 		},
 	}
@@ -32,7 +32,8 @@ func makeFakePackedBlob() (restic.BlobHandle, restic.PackedBlob) {
 }
 
 func TestAssociatedSet(t *testing.T) {
-	bh, blob := makeFakePackedBlob()
+	var encrypt bool = true
+	bh, blob := makeFakePackedBlob(encrypt)
 
 	mi := NewMasterIndex()
 	mi.StorePack(blob.PackID, []restic.Blob{blob.Blob})
@@ -115,7 +116,8 @@ func TestAssociatedSet(t *testing.T) {
 }
 
 func TestAssociatedSetWithExtendedIndex(t *testing.T) {
-	_, blob := makeFakePackedBlob()
+	var encrypt bool = true
+	_, blob := makeFakePackedBlob(encrypt)
 
 	mi := NewMasterIndex()
 	mi.StorePack(blob.PackID, []restic.Blob{blob.Blob})
@@ -124,7 +126,7 @@ func TestAssociatedSetWithExtendedIndex(t *testing.T) {
 	bs := NewAssociatedSet[uint8](mi)
 
 	// add new blobs to index after building the set
-	of, blob2 := makeFakePackedBlob()
+	of, blob2 := makeFakePackedBlob(encrypt)
 	mi.StorePack(blob2.PackID, []restic.Blob{blob2.Blob})
 	test.OK(t, mi.SaveIndex(context.TODO(), &noopSaver{}))
 

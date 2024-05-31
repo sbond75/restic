@@ -215,7 +215,8 @@ func TestUnpackedVerification(t *testing.T) {
 			header[8] ^= 0x42
 		}
 
-		encryptedHeader := make([]byte, 0, crypto.CiphertextLength(len(header)))
+		var encrypt bool = true
+		encryptedHeader := make([]byte, 0, crypto.CiphertextLength(len(header), encrypt))
 		nonce := crypto.NewRandomNonce()
 		encryptedHeader = append(encryptedHeader, nonce...)
 		encryptedHeader = k.Seal(encryptedHeader, nonce, header, nil)

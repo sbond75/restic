@@ -14,6 +14,9 @@ func PlaintextLength(ciphertextSize int) int {
 
 // CiphertextLength returns the encrypted length of a blob with plaintextSize
 // bytes.
-func CiphertextLength(plaintextSize int) int {
+func CiphertextLength(plaintextSize int, encrypt bool) int {
+	if !encrypt {
+		return plaintextSize
+	}
 	return plaintextSize + Extension
 }

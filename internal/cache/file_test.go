@@ -20,6 +20,7 @@ import (
 )
 
 func generateRandomFiles(t testing.TB, tpe backend.FileType, c *Cache) restic.IDSet {
+	var encrypt bool = true
 	ids := restic.NewIDSet()
 	for i := 0; i < rand.Intn(15)+10; i++ {
 		buf := rtest.Random(rand.Int(), 1<<19)
@@ -30,7 +31,7 @@ func generateRandomFiles(t testing.TB, tpe backend.FileType, c *Cache) restic.ID
 			t.Errorf("index %v present before save", id)
 		}
 
-		err := c.save(h, bytes.NewReader(buf))
+		err := c.save(h, bytes.NewReader(buf), encrypt)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -48,7 +49,8 @@ func randomID(s restic.IDSet) restic.ID {
 }
 
 func load(t testing.TB, c *Cache, h backend.Handle) []byte {
-	rd, inCache, err := c.load(h, 0, 0)
+	var encrypt bool = true
+	rd, inCache, err := c.load(h, 0, 0, encrypt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,6 +140,7 @@ func TestFiles(t *testing.T) {
 }
 
 func TestFileLoad(t *testing.T) {
+	var encrypt bool = true
 	seed := time.Now().Unix()
 	t.Logf("seed is %v", seed)
 	rand.Seed(seed)
@@ -152,7 +155,7 @@ func TestFileLoad(t *testing.T) {
 		Type: restic.PackFile,
 		Name: id.String(),
 	}
-	if err := c.save(h, bytes.NewReader(data)); err != nil {
+	if err := c.save(h, bytes.NewReader(data), encrypt); err != nil {
 		t.Fatalf("Save() returned error: %v", err)
 	}
 
@@ -170,7 +173,7 @@ func TestFileLoad(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%v/%v", test.length, test.offset), func(t *testing.T) {
-			rd, inCache, err := c.load(h, test.length, test.offset)
+			rd, inCache, err := c.load(h, test.length, test.offset, encrypt)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -219,6 +222,7 @@ func TestFileLoad(t *testing.T) {
 // See https://devblogs.microsoft.com/oldnewthing/20211022-00/?p=105822
 // for hints on how to fix this properly.
 func TestFileSaveConcurrent(t *testing.T) {
+	var encrypt bool = true
 	if runtime.GOOS == "windows" {
 		t.Skip("may not work due to FILE_SHARE_DELETE issue")
 	}
@@ -239,7 +243,7 @@ func TestFileSaveConcurrent(t *testing.T) {
 	}
 
 	for i := 0; i < nproc/2; i++ {
-		g.Go(func() error { return c.save(h, bytes.NewReader(data)) })
+		g.Go(func() error { return c.save(h, bytes.NewReader(data), encrypt) })
 
 		// Can't use load because only the main goroutine may call t.Fatal.
 		g.Go(func() error {
@@ -247,7 +251,7 @@ func TestFileSaveConcurrent(t *testing.T) {
 			// ensure is ENOENT or nil error.
 			time.Sleep(time.Duration(100+rand.Intn(200)) * time.Millisecond)
 
-			f, _, err := c.load(h, 0, 0)
+			f, _, err := c.load(h, 0, 0, encrypt)
 			t.Logf("Load error: %v", err)
 			switch {
 			case err == nil:
@@ -272,6 +276,7 @@ func TestFileSaveConcurrent(t *testing.T) {
 }
 
 func TestFileSaveAfterDamage(t *testing.T) {
+	var encrypt bool = true
 	c := TestNewCache(t)
 	rtest.OK(t, fs.RemoveAll(c.path))
 
@@ -282,7 +287,7 @@ func TestFileSaveAfterDamage(t *testing.T) {
 		Type: restic.PackFile,
 		Name: id.String(),
 	}
-	if err := c.save(h, bytes.NewReader(data)); err == nil {
+	if err := c.save(h, bytes.NewReader(data), encrypt); err == nil {
 		t.Fatal("Missing error when saving to deleted cache directory")
 	}
 }

@@ -60,7 +60,8 @@ func randomData(n int) (backend.Handle, []byte) {
 func TestBackend(t *testing.T) {
 	be := mem.New()
 	c := TestNewCache(t)
-	wbe := c.Wrap(be)
+	var encrypt bool = true
+	wbe := c.Wrap(be, encrypt)
 
 	h, data := randomData(5234142)
 
@@ -126,9 +127,10 @@ func (l *loadCountingBackend) Load(ctx context.Context, h backend.Handle, length
 }
 
 func TestOutOfBoundsAccess(t *testing.T) {
+	var encrypt bool = true
 	be := &loadCountingBackend{Backend: mem.New()}
 	c := TestNewCache(t)
-	wbe := c.Wrap(be)
+	wbe := c.Wrap(be, encrypt)
 
 	h, data := randomData(50)
 	save(t, be, h, data)
@@ -155,9 +157,10 @@ func TestOutOfBoundsAccess(t *testing.T) {
 }
 
 func TestForget(t *testing.T) {
+	var encrypt bool = true
 	be := &loadCountingBackend{Backend: mem.New()}
 	c := TestNewCache(t)
-	wbe := c.Wrap(be)
+	wbe := c.Wrap(be, encrypt)
 
 	h, data := randomData(50)
 	save(t, be, h, data)
@@ -197,6 +200,7 @@ func (be loadErrorBackend) Load(_ context.Context, _ backend.Handle, _ int, _ in
 }
 
 func TestErrorBackend(t *testing.T) {
+	var encrypt bool = true
 	be := mem.New()
 	c := TestNewCache(t)
 	h, data := randomData(5234142)
@@ -229,7 +233,7 @@ func TestErrorBackend(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 
-	wrappedBE := c.Wrap(errBackend)
+	wrappedBE := c.Wrap(errBackend, encrypt)
 	var wg sync.WaitGroup
 	for i := 0; i < 5; i++ {
 		wg.Add(1)
