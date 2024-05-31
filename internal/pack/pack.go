@@ -80,10 +80,16 @@ func (p *Packer) Finalize() error {
 		return err
 	}
 
-	encryptedHeader := make([]byte, 0, crypto.CiphertextLength(len(header)))
-	nonce := crypto.NewRandomNonce()
-	encryptedHeader = append(encryptedHeader, nonce...)
-	encryptedHeader = p.k.Seal(encryptedHeader, nonce, header, nil)
+	var encrypt bool = p.k != nil
+	var encryptedHeader []byte
+	if encrypt {
+		encryptedHeader = make([]byte, 0, crypto.CiphertextLength(len(header)))
+		nonce := crypto.NewRandomNonce()
+		encryptedHeader = append(encryptedHeader, nonce...)
+		encryptedHeader = p.k.Seal(encryptedHeader, nonce, header, nil)
+	} else {
+		encryptedHeader = header
+	}
 	encryptedHeader = binary.LittleEndian.AppendUint32(encryptedHeader, uint32(len(encryptedHeader)))
 
 	if err := verifyHeader(p.k, encryptedHeader, p.blobs); err != nil {
@@ -183,7 +189,8 @@ func (p *Packer) Count() int {
 func (p *Packer) HeaderFull() bool {
 	p.m.Lock()
 	defer p.m.Unlock()
-	return headerSize+uint(len(p.blobs)+1)*entrySize > MaxHeaderSize
+	var encrypt bool = p.k != nil
+	return getHeaderSize(encrypt)+uint(len(p.blobs)+1)*entrySize > MaxHeaderSize
 }
 
 // Blobs returns the slice of blobs that have been written.
@@ -214,6 +221,26 @@ const (
 	// number of header entries to download as part of header-length request
 	eagerEntries = 15
 )
+
+func getMinFileSize(encrypt bool) uint {
+	var size uint
+	if encrypt {
+		size = minFileSize
+	} else {
+		size = minFileSize - crypto.Extension
+	}
+	return size
+}
+
+func getHeaderSize(encrypt bool) uint {
+	var size uint
+	if encrypt {
+		size = headerSize
+	} else {
+		size = headerSize - crypto.Extension
+	}
+	return size
+}
 
 // readRecords reads up to bufsize bytes from the underlying ReaderAt, returning
 // the raw header, the total number of bytes in the header, and any error.
@@ -260,9 +287,12 @@ func readRecords(rd io.ReaderAt, size int64, bufsize int) ([]byte, int, error) {
 
 // readHeader reads the header at the end of rd. size is the length of the
 // whole data accessible in rd.
-func readHeader(rd io.ReaderAt, size int64) ([]byte, error) {
+func readHeader(rd io.ReaderAt, size int64, encrypt bool) ([]byte, error) {
 	debug.Log("size: %v", size)
-	if size < int64(minFileSize) {
+	
+	checkSize := getMinFileSize(encrypt)
+	
+	if size < int64(checkSize) {
 		err := InvalidFileError{Message: "file is too short"}
 		return nil, errors.Wrap(err, "readHeader")
 	}
@@ -271,7 +301,7 @@ func readHeader(rd io.ReaderAt, size int64) ([]byte, error) {
 	// eagerly download eagerEntries header entries as part of header-length request.
 	// only make second request if actual number of entries is greater than eagerEntries
 
-	eagerSize := eagerEntries*int(entrySize) + headerSize
+	eagerSize := eagerEntries*int(entrySize) + int(getHeaderSize(encrypt))
 	b, c, err := readRecords(rd, size, eagerSize)
 	if err != nil {
 		return nil, err
@@ -299,21 +329,25 @@ func (e InvalidFileError) Error() string {
 // List returns the list of entries found in a pack file and the length of the
 // header (including header size and crypto overhead)
 func List(k *crypto.Key, rd io.ReaderAt, size int64) (entries []restic.Blob, hdrSize uint32, err error) {
-	buf, err := readHeader(rd, size)
+	var encrypt bool = k != nil
+	buf, err := readHeader(rd, size, encrypt)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	if len(buf) < crypto.CiphertextLength(0) {
+	if encrypt && len(buf) < crypto.CiphertextLength(0) {
 		return nil, 0, errors.New("invalid header, too short")
 	}
 
 	hdrSize = headerLengthSize + uint32(len(buf))
 
-	nonce, buf := buf[:k.NonceSize()], buf[k.NonceSize():]
-	buf, err = k.Open(buf[:0], nonce, buf, nil)
-	if err != nil {
-		return nil, 0, err
+	if encrypt {
+		var nonce []byte
+		nonce, buf = buf[:k.NonceSize()], buf[k.NonceSize():]
+		buf, err = k.Open(buf[:0], nonce, buf, nil)
+		if err != nil {
+			return nil, 0, err
+		}
 	}
 
 	// might over allocate a bit if all blobs have EntrySize but only by a few percent
@@ -377,8 +411,8 @@ func CalculateEntrySize(blob restic.Blob) int {
 	return int(plainEntrySize)
 }
 
-func CalculateHeaderSize(blobs []restic.Blob) int {
-	size := headerSize
+func CalculateHeaderSize(blobs []restic.Blob, encrypt bool) int {
+	size := int(getHeaderSize(encrypt))
 	for _, blob := range blobs {
 		size += CalculateEntrySize(blob)
 	}
@@ -389,9 +423,11 @@ func CalculateHeaderSize(blobs []restic.Blob) int {
 // If onlyHdr is set to true, only the size of the header is returned
 // Note that this function only gives correct sizes, if there are no
 // duplicates in the index.
-func Size(ctx context.Context, mi restic.ListBlobser, onlyHdr bool) (map[restic.ID]int64, error) {
+func Size(ctx context.Context, mi restic.ListBlobser, onlyHdr bool, encrypt bool) (map[restic.ID]int64, error) {
 	packSize := make(map[restic.ID]int64)
 
+	headerSize := int64(getHeaderSize(encrypt))
+	
 	err := mi.ListBlobs(ctx, func(blob restic.PackedBlob) {
 		size, ok := packSize[blob.PackID]
 		if !ok {

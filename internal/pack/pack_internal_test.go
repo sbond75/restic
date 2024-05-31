@@ -101,7 +101,8 @@ func TestReadHeaderEagerLoad(t *testing.T) {
 
 		rd := &countingReaderAt{delegate: bytes.NewReader(buf.Bytes())}
 
-		header, err := readHeader(rd, int64(buf.Len()))
+		var encrypt bool = true // temp
+		header, err := readHeader(rd, int64(buf.Len()), encrypt)
 		rtest.OK(t, err)
 
 		rtest.Equals(t, expectedHeader, header)

@@ -56,7 +56,8 @@ func RepairIndex(ctx context.Context, repo *Repository, opts RepairIndexOptions,
 		if err != nil {
 			return err
 		}
-		packSizeFromIndex, err = pack.Size(ctx, repo, false)
+		var encrypt bool = !repo.opts.Unencrypted
+		packSizeFromIndex, err = pack.Size(ctx, repo, false, encrypt)
 		if err != nil {
 			return err
 		}

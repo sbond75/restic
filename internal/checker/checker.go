@@ -153,7 +153,8 @@ func (c *Checker) LoadIndex(ctx context.Context, p *progress.Counter) (hints []e
 	}
 
 	// compute pack size using index entries
-	c.packs, err = pack.Size(ctx, c.repo, false)
+	var encrypt bool = c.repo.Encrypted()
+	c.packs, err = pack.Size(ctx, c.repo, false, encrypt)
 	if err != nil {
 		return hints, append(errs, err)
 	}

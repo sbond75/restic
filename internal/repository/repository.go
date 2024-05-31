@@ -364,17 +364,23 @@ func (r *Repository) saveAndEncrypt(ctx context.Context, t restic.BlobType, data
 		}
 	}
 
-	nonce := crypto.NewRandomNonce()
+	var encrypt bool = !r.opts.Unencrypted // `encrypt`: whether to encrypt the data or save it as (possibly compressed) plaintext.
+	var ciphertext []byte
+	if encrypt {
+		nonce := crypto.NewRandomNonce()
 
-	ciphertext := make([]byte, 0, crypto.CiphertextLength(len(data)))
-	ciphertext = append(ciphertext, nonce...)
+		ciphertext = make([]byte, 0, crypto.CiphertextLength(len(data)))
+		ciphertext = append(ciphertext, nonce...)
 
-	// encrypt blob
-	ciphertext = r.key.Seal(ciphertext, nonce, data, nil)
+		// encrypt blob
+		ciphertext = r.key.Seal(ciphertext, nonce, data, nil)
 
-	if err := r.verifyCiphertext(ciphertext, uncompressedLength, id); err != nil {
-		//nolint:revive // ignore linter warnings about error message spelling
-		return 0, fmt.Errorf("Detected data corruption while saving blob %v: %w\nCorrupted blobs are either caused by hardware issues or software bugs. Please open an issue at https://github.com/restic/restic/issues/new/choose for further troubleshooting.", id, err)
+		if err := r.verifyCiphertext(ciphertext, uncompressedLength, id); err != nil {
+			//nolint:revive // ignore linter warnings about error message spelling
+			return 0, fmt.Errorf("Detected data corruption while saving blob %v: %w\nCorrupted blobs are either caused by hardware issues or software bugs. Please open an issue at https://github.com/restic/restic/issues/new/choose for further troubleshooting.", id, err)
+		}
+	} else {
+		ciphertext = data
 	}
 
 	// find suitable packer and add blob
@@ -397,10 +403,17 @@ func (r *Repository) verifyCiphertext(buf []byte, uncompressedLength int, id res
 		return nil
 	}
 
-	nonce, ciphertext := buf[:r.key.NonceSize()], buf[r.key.NonceSize():]
-	plaintext, err := r.key.Open(nil, nonce, ciphertext, nil)
-	if err != nil {
-		return fmt.Errorf("decryption failed: %w", err)
+	var encrypt bool = !r.opts.Unencrypted // `encrypt`: whether to encrypt the data or save it as (possibly compressed) plaintext.
+	var plaintext []byte
+	var err error
+	if encrypt {
+		nonce, ciphertext := buf[:r.key.NonceSize()], buf[r.key.NonceSize():]
+		plaintext, err = r.key.Open(nil, nonce, ciphertext, nil)
+		if err != nil {
+			return fmt.Errorf("decryption failed: %w", err)
+		}
+	} else {
+		plaintext = buf
 	}
 	if uncompressedLength != 0 {
 		// DecodeAll will allocate a slice if it is not large enough since it
@@ -533,6 +546,10 @@ func (r *Repository) verifyUnpacked(buf []byte, t restic.FileType, expected []by
 func (r *Repository) RemoveUnpacked(ctx context.Context, t restic.FileType, id restic.ID) error {
 	// TODO prevent everything except removing snapshots for non-repository code
 	return r.be.Remove(ctx, backend.Handle{Type: t, Name: id.String()})
+}
+
+func (r *Repository) Encrypted() bool {
+	return !r.opts.Unencrypted
 }
 
 // Flush saves all remaining packs and the index

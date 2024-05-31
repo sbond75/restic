@@ -61,7 +61,8 @@ func verifyBlobs(t testing.TB, bufs []Buf, k *crypto.Key, rd io.ReaderAt, packSi
 	rtest.Equals(t, len(entries), len(bufs))
 
 	// check the head size calculation for consistency
-	headerSize := pack.CalculateHeaderSize(entries)
+	var encrypt bool = k != nil
+	headerSize := pack.CalculateHeaderSize(entries, encrypt)
 	written += headerSize
 
 	// check length

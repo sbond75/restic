@@ -60,6 +60,9 @@ type Repository interface {
 	SaveUnpacked(ctx context.Context, t FileType, buf []byte) (ID, error)
 	// RemoveUnpacked removes a file from the repository. This will eventually be restricted to deleting only snapshots.
 	RemoveUnpacked(ctx context.Context, t FileType, id ID) error
+
+	// Whether this is an encrypted repository.
+	Encrypted() bool
 }
 
 type FileType = backend.FileType

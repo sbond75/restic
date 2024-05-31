@@ -68,7 +68,8 @@ func checkPackInner(ctx context.Context, r *Repository, id restic.ID, blobs []re
 	sort.Slice(blobs, func(i, j int) bool {
 		return blobs[i].Offset < blobs[j].Offset
 	})
-	idxHdrSize := pack.CalculateHeaderSize(blobs)
+	var encrypt bool = !r.opts.Unencrypted
+	idxHdrSize := pack.CalculateHeaderSize(blobs, encrypt)
 	lastBlobEnd := 0
 	nonContinuousPack := false
 	for _, blob := range blobs {
