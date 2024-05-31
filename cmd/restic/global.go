@@ -462,32 +462,30 @@ func OpenRepository(ctx context.Context, opts GlobalOptions) (*repository.Reposi
 		passwordTriesLeft = 3
 	}
 
-	if encrypt {
-		for ; passwordTriesLeft > 0; passwordTriesLeft-- {
-			opts.password, err = ReadPassword(ctx, opts, "enter password for repository: ")
-			if ctx.Err() != nil {
-				return nil, ctx.Err()
-			}
-			if err != nil && passwordTriesLeft > 1 {
-				opts.password = ""
-				fmt.Printf("%s. Try again\n", err)
-			}
-			if err != nil {
-				continue
-			}
-
-			err = s.SearchKey(ctx, opts.password, maxKeys, opts.KeyHint)
-			if err != nil && passwordTriesLeft > 1 {
-				opts.password = ""
-				fmt.Fprintf(os.Stderr, "%s. Try again\n", err)
-			}
+	for ; passwordTriesLeft > 0; passwordTriesLeft-- {
+		opts.password, err = ReadPassword(ctx, opts, "enter password for repository: ")
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if err != nil && passwordTriesLeft > 1 {
+			opts.password = ""
+			fmt.Printf("%s. Try again\n", err)
 		}
 		if err != nil {
-			if errors.IsFatal(err) {
-				return nil, err
-			}
-			return nil, errors.Fatalf("%s", err)
+			continue
 		}
+
+		err = s.SearchKey(ctx, opts.password, maxKeys, opts.KeyHint)
+		if err != nil && passwordTriesLeft > 1 {
+			opts.password = ""
+			fmt.Fprintf(os.Stderr, "%s. Try again\n", err)
+		}
+	}
+	if err != nil {
+		if errors.IsFatal(err) {
+			return nil, err
+		}
+		return nil, errors.Fatalf("%s", err)
 	}
 
 	if stdoutIsTerminal() && !opts.JSON {

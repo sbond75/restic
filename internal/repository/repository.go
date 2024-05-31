@@ -814,7 +814,7 @@ func (r *Repository) Init(ctx context.Context, version uint, password string, ch
 		return errors.New("repository master key and config already initialized")
 	}
 
-	cfg, err := restic.CreateConfig(version, encrypt)
+	cfg, err := restic.CreateConfig(version)
 	if err != nil {
 		return err
 	}

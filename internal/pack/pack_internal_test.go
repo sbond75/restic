@@ -130,6 +130,7 @@ func TestReadHeaderEagerLoad(t *testing.T) {
 }
 
 func TestReadRecords(t *testing.T) {
+	var encrypt bool = true
 	testReadRecords := func(dataSize, entryCount, totalRecords int) {
 		totalHeader := rtest.Random(0, totalRecords*int(entrySize)+crypto.Extension)
 		bufSize := entryCount*int(entrySize) + crypto.Extension
@@ -146,7 +147,7 @@ func TestReadRecords(t *testing.T) {
 
 		rd := bytes.NewReader(buf.Bytes())
 
-		header, count, err := readRecords(rd, int64(rd.Len()), bufSize+4)
+		header, count, err := readRecords(rd, int64(rd.Len()), bufSize+4, encrypt)
 		rtest.OK(t, err)
 		rtest.Equals(t, len(totalHeader)+4, count)
 		rtest.Equals(t, expectedHeader, header)

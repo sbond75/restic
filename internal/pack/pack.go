@@ -248,7 +248,7 @@ func getHeaderSize(encrypt bool) uint {
 // the raw header, the total number of bytes in the header, and any error.
 // If the header contains fewer than bufsize bytes, the header is truncated to
 // the appropriate size.
-func readRecords(rd io.ReaderAt, size int64, bufsize int) ([]byte, int, error) {
+func readRecords(rd io.ReaderAt, size int64, bufsize int, encrypt bool) ([]byte, int, error) {
 	if bufsize > int(size) {
 		bufsize = int(size)
 	}
@@ -267,7 +267,7 @@ func readRecords(rd io.ReaderAt, size int64, bufsize int) ([]byte, int, error) {
 	switch {
 	case hlen == 0:
 		err = InvalidFileError{Message: "header length is zero"}
-	case hlen < crypto.Extension:
+	case hlen < crypto.Extension && encrypt:
 		err = InvalidFileError{Message: "header length is too short"}
 	case int64(hlen) > size-int64(headerLengthSize):
 		err = InvalidFileError{Message: "header is larger than file"}
@@ -304,7 +304,7 @@ func readHeader(rd io.ReaderAt, size int64, encrypt bool) ([]byte, error) {
 	// only make second request if actual number of entries is greater than eagerEntries
 
 	eagerSize := eagerEntries*int(entrySize) + int(getHeaderSize(encrypt))
-	b, c, err := readRecords(rd, size, eagerSize)
+	b, c, err := readRecords(rd, size, eagerSize, encrypt)
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +312,7 @@ func readHeader(rd io.ReaderAt, size int64, encrypt bool) ([]byte, error) {
 		// eager read sufficed, return what we got
 		return b, nil
 	}
-	b, _, err = readRecords(rd, size, c)
+	b, _, err = readRecords(rd, size, c, encrypt)
 	if err != nil {
 		return nil, err
 	}
