@@ -62,39 +62,34 @@ func createMasterKey(ctx context.Context, s *Repository, password string) (*Key,
 }
 
 // OpenKey tries do decrypt the key specified by name with the given password.
-func OpenKey(ctx context.Context, s *Repository, id restic.ID, password string, encrypt bool) (*Key, error) {
+func OpenKey(ctx context.Context, s *Repository, id restic.ID, password string) (*Key, error) {
 	k, err := LoadKey(ctx, s, id)
 	if err != nil {
 		debug.Log("LoadKey(%v) returned error %v", id.String(), err)
 		return nil, err
 	}
 
-	var buf []byte
-	if encrypt {
-		// check KDF
-		if k.KDF != "scrypt" {
-			return nil, errors.New("only supported KDF is scrypt()")
-		}
+	// check KDF
+	if k.KDF != "scrypt" {
+		return nil, errors.New("only supported KDF is scrypt()")
+	}
 
-		// derive user key
-		params := crypto.Params{
-			N: k.N,
-			R: k.R,
-			P: k.P,
-		}
-		k.user, err = crypto.KDF(params, k.Salt, password)
-		if err != nil {
-			return nil, errors.Wrap(err, "crypto.KDF")
-		}
+	// derive user key
+	params := crypto.Params{
+		N: k.N,
+		R: k.R,
+		P: k.P,
+	}
+	k.user, err = crypto.KDF(params, k.Salt, password)
+	if err != nil {
+		return nil, errors.Wrap(err, "crypto.KDF")
+	}
 
-		// decrypt master keys
-		nonce, ciphertext := k.Data[:k.user.NonceSize()], k.Data[k.user.NonceSize():]
-		buf, err = k.user.Open(nil, nonce, ciphertext, nil)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		buf = k.Data
+	// decrypt master keys
+	nonce, ciphertext := k.Data[:k.user.NonceSize()], k.Data[k.user.NonceSize():]
+	buf, err := k.user.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, err
 	}
 
 	// restore json
@@ -118,14 +113,13 @@ func OpenKey(ctx context.Context, s *Repository, id restic.ID, password string, 
 // maxKeys is reached, ErrMaxKeysReached is returned. When setting maxKeys to
 // zero, all keys in the repo are checked.
 func SearchKey(ctx context.Context, s *Repository, password string, maxKeys int, keyHint string) (k *Key, err error) {
-	var encrypt bool = !s.opts.Unencrypted
 	checked := 0
 
 	if len(keyHint) > 0 {
 		id, err := restic.Find(ctx, s, restic.KeyFile, keyHint)
 
 		if err == nil {
-			key, err := OpenKey(ctx, s, id, password, encrypt)
+			key, err := OpenKey(ctx, s, id, password)
 
 			if err == nil {
 				debug.Log("successfully opened hinted key %v", id)
@@ -149,7 +143,7 @@ func SearchKey(ctx context.Context, s *Repository, password string, maxKeys int,
 		}
 
 		debug.Log("trying key %q", id.String())
-		key, err := OpenKey(ctx, s, id, password, encrypt)
+		key, err := OpenKey(ctx, s, id, password)
 		if err != nil {
 			debug.Log("key %v returned error %v", id.String(), err)
 

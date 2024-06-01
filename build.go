@@ -389,8 +389,12 @@ func main() {
 	verbosePrintf("detected Go version %v\n", goVersion)
 
 	preserveSymbols := false
+	debug := false
 	for i := range buildTags {
 		buildTags[i] = strings.TrimSpace(buildTags[i])
+		if buildTags[i] == "debug" {
+			debug = true
+		}
 		if buildTags[i] == "debug" || buildTags[i] == "profile" {
 			preserveSymbols = true
 		}
@@ -427,6 +431,12 @@ func main() {
 	}
 	verbosePrintf("ldflags: %s\n", ldflags)
 
+	gcflags := ""
+	if debug {
+		// Turn off optimization and inlining
+		gcflags += "all=-N -l"
+	}
+	
 	var (
 		buildArgs []string
 		testArgs  []string
@@ -445,6 +455,7 @@ func main() {
 
 	buildArgs = append(buildArgs,
 		"-tags", strings.Join(buildTags, " "),
+		"-gcflags", gcflags,
 		"-ldflags", ldflags,
 		"-o", output, buildTarget,
 	)
