@@ -231,6 +231,7 @@ func (res *Restorer) restoreEmptyFileAt(node *restic.Node, target, location stri
 // RestoreTo creates the directories and files in the snapshot below dst.
 // Before an item is created, res.Filter is called.
 func (res *Restorer) RestoreTo(ctx context.Context, dst string) error {
+	var encrypt bool = res.repo.Encrypted()
 	var err error
 	if !filepath.IsAbs(dst) {
 		dst, err = filepath.Abs(dst)
@@ -305,7 +306,7 @@ func (res *Restorer) RestoreTo(ctx context.Context, dst string) error {
 		return err
 	}
 
-	err = filerestorer.restoreFiles(ctx)
+	err = filerestorer.restoreFiles(ctx, encrypt)
 	if err != nil {
 		return err
 	}

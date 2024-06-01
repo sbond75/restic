@@ -45,12 +45,12 @@ func (mi *MasterIndex) Lookup(bh restic.BlobHandle) (pbs []restic.PackedBlob) {
 }
 
 // LookupSize queries all known Indexes for the ID and returns the first match.
-func (mi *MasterIndex) LookupSize(bh restic.BlobHandle) (uint, bool) {
+func (mi *MasterIndex) LookupSize(bh restic.BlobHandle, encrypt bool) (uint, bool) {
 	mi.idxMutex.RLock()
 	defer mi.idxMutex.RUnlock()
 
 	for _, idx := range mi.idx {
-		if size, found := idx.LookupSize(bh); found {
+		if size, found := idx.LookupSize(bh, encrypt); found {
 			return size, found
 		}
 	}

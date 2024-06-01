@@ -176,7 +176,7 @@ func (idx *Index) Has(bh restic.BlobHandle) bool {
 
 // LookupSize returns the length of the plaintext content of the blob with the
 // given id.
-func (idx *Index) LookupSize(bh restic.BlobHandle) (plaintextLength uint, found bool) {
+func (idx *Index) LookupSize(bh restic.BlobHandle, encrypt bool) (plaintextLength uint, found bool) {
 	idx.m.RLock()
 	defer idx.m.RUnlock()
 
@@ -187,7 +187,7 @@ func (idx *Index) LookupSize(bh restic.BlobHandle) (plaintextLength uint, found 
 	if e.uncompressedLength != 0 {
 		return uint(e.uncompressedLength), true
 	}
-	return uint(crypto.PlaintextLength(int(e.length))), true
+	return uint(crypto.PlaintextLength(int(e.length), encrypt)), true
 }
 
 // Each passes all blobs known to the index to the callback fn. This blocks any

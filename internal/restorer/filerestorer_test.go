@@ -141,6 +141,7 @@ func newTestRepo(content []TestFile) *TestRepo {
 }
 
 func restoreAndVerify(t *testing.T, tempdir string, content []TestFile, files map[string]bool, sparse bool) {
+	var encrypt bool = true
 	t.Helper()
 	repo := newTestRepo(content)
 
@@ -156,7 +157,7 @@ func restoreAndVerify(t *testing.T, tempdir string, content []TestFile, files ma
 		}
 	}
 
-	err := r.restoreFiles(context.TODO())
+	err := r.restoreFiles(context.TODO(), encrypt)
 	rtest.OK(t, err)
 
 	verifyRestore(t, r, repo)
@@ -264,6 +265,7 @@ func TestFileRestorerFrequentBlob(t *testing.T) {
 }
 
 func TestErrorRestoreFiles(t *testing.T) {
+	var encrypt bool = true
 	tempdir := rtest.TempDir(t)
 	content := []TestFile{
 		{
@@ -284,11 +286,12 @@ func TestErrorRestoreFiles(t *testing.T) {
 	r := newFileRestorer(tempdir, repo.loader, repo.Lookup, 2, false, nil)
 	r.files = repo.files
 
-	err := r.restoreFiles(context.TODO())
+	err := r.restoreFiles(context.TODO(), encrypt)
 	rtest.Assert(t, errors.Is(err, loadError), "got %v, expected contained error %v", err, loadError)
 }
 
 func TestFatalDownloadError(t *testing.T) {
+	var encrypt bool = true
 	tempdir := rtest.TempDir(t)
 	content := []TestFile{
 		{
@@ -332,7 +335,7 @@ func TestFatalDownloadError(t *testing.T) {
 		return nil
 	}
 
-	err := r.restoreFiles(context.TODO())
+	err := r.restoreFiles(context.TODO(), encrypt)
 	rtest.OK(t, err)
 
 	rtest.Assert(t, len(errors) == 1, "unexpected number of restore errors, expected: 1, got: %v", len(errors))

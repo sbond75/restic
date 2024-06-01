@@ -20,11 +20,11 @@ func (b Blob) String() string {
 		b.Type, b.ID.Str(), b.Offset, b.Length, b.UncompressedLength)
 }
 
-func (b Blob) DataLength() uint {
+func (b Blob) DataLength(encrypt bool) uint {
 	if b.UncompressedLength != 0 {
 		return b.UncompressedLength
 	}
-	return uint(crypto.PlaintextLength(int(b.Length)))
+	return uint(crypto.PlaintextLength(int(b.Length), encrypt))
 }
 
 func (b Blob) IsCompressed() bool {

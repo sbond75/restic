@@ -109,7 +109,7 @@ func (r *fileRestorer) forEachBlob(blobIDs []restic.ID, fn func(packID restic.ID
 	return nil
 }
 
-func (r *fileRestorer) restoreFiles(ctx context.Context) error {
+func (r *fileRestorer) restoreFiles(ctx context.Context, encrypt bool) error {
 
 	packs := make(map[restic.ID]*packInfo) // all packs
 	// Process packs in order of first access. While this cannot guarantee
@@ -129,7 +129,7 @@ func (r *fileRestorer) restoreFiles(ctx context.Context) error {
 		err := r.forEachBlob(fileBlobs, func(packID restic.ID, blob restic.Blob) {
 			if largeFile {
 				packsMap[packID] = append(packsMap[packID], fileBlobInfo{id: blob.ID, offset: fileOffset})
-				fileOffset += int64(blob.DataLength())
+				fileOffset += int64(blob.DataLength(encrypt))
 			}
 			pack, ok := packs[packID]
 			if !ok {
@@ -165,7 +165,7 @@ func (r *fileRestorer) restoreFiles(ctx context.Context) error {
 
 	worker := func() error {
 		for pack := range downloadCh {
-			if err := r.downloadPack(ctx, pack); err != nil {
+			if err := r.downloadPack(ctx, pack, encrypt); err != nil {
 				return err
 			}
 		}
@@ -200,7 +200,7 @@ type blobToFileOffsetsMapping map[restic.ID]struct {
 	blob  restic.Blob
 }
 
-func (r *fileRestorer) downloadPack(ctx context.Context, pack *packInfo) error {
+func (r *fileRestorer) downloadPack(ctx context.Context, pack *packInfo, encrypt bool) error {
 	// calculate blob->[]files->[]offsets mappings
 	blobs := make(blobToFileOffsetsMapping)
 	for file := range pack.files {
@@ -219,7 +219,7 @@ func (r *fileRestorer) downloadPack(ctx context.Context, pack *packInfo) error {
 				if packID.Equal(pack.id) {
 					addBlob(blob, fileOffset)
 				}
-				fileOffset += int64(blob.DataLength())
+				fileOffset += int64(blob.DataLength(encrypt))
 			})
 			if err != nil {
 				// restoreFiles should have caught this error before

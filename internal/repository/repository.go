@@ -613,7 +613,8 @@ func (r *Repository) LookupBlob(tpe restic.BlobType, id restic.ID) []restic.Pack
 
 // LookupBlobSize returns the size of blob id.
 func (r *Repository) LookupBlobSize(tpe restic.BlobType, id restic.ID) (uint, bool) {
-	return r.idx.LookupSize(restic.BlobHandle{Type: tpe, ID: id})
+	var encrypt bool = !r.opts.Unencrypted
+	return r.idx.LookupSize(restic.BlobHandle{Type: tpe, ID: id}, encrypt)
 }
 
 // ListBlobs runs fn on all blobs known to the index. When the context is cancelled,

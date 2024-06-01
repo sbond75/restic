@@ -80,7 +80,7 @@ func TestMasterIndex(t *testing.T) {
 	blobs := mIdx.Lookup(bhInIdx1)
 	rtest.Equals(t, []restic.PackedBlob{blob1}, blobs)
 
-	size, found := mIdx.LookupSize(bhInIdx1)
+	size, found := mIdx.LookupSize(bhInIdx1, encrypt)
 	rtest.Equals(t, true, found)
 	rtest.Equals(t, uint(10), size)
 
@@ -91,7 +91,7 @@ func TestMasterIndex(t *testing.T) {
 	blobs = mIdx.Lookup(bhInIdx2)
 	rtest.Equals(t, []restic.PackedBlob{blob2}, blobs)
 
-	size, found = mIdx.LookupSize(bhInIdx2)
+	size, found = mIdx.LookupSize(bhInIdx2, encrypt)
 	rtest.Equals(t, true, found)
 	rtest.Equals(t, uint(200), size)
 
@@ -116,7 +116,7 @@ func TestMasterIndex(t *testing.T) {
 	}
 	rtest.Assert(t, found, "blob12a not found in result")
 
-	size, found = mIdx.LookupSize(bhInIdx12)
+	size, found = mIdx.LookupSize(bhInIdx12, encrypt)
 	rtest.Equals(t, true, found)
 	rtest.Equals(t, uint(80), size)
 
@@ -125,7 +125,7 @@ func TestMasterIndex(t *testing.T) {
 	rtest.Assert(t, !found, "Expected no blobs when fetching with a random id")
 	blobs = mIdx.Lookup(restic.NewRandomBlobHandle())
 	rtest.Assert(t, blobs == nil, "Expected no blobs when fetching with a random id")
-	_, found = mIdx.LookupSize(restic.NewRandomBlobHandle())
+	_, found = mIdx.LookupSize(restic.NewRandomBlobHandle(), encrypt)
 	rtest.Assert(t, !found, "Expected no blobs when fetching with a random id")
 }
 
@@ -307,13 +307,14 @@ func BenchmarkMasterIndexLookupParallel(b *testing.B) {
 }
 
 func BenchmarkMasterIndexLookupBlobSize(b *testing.B) {
+	var encrypt bool = true
 	rng := rand.New(rand.NewSource(0))
 	mIdx, lookupBh := createRandomMasterIndex(b, rand.New(rng), 5, 200000)
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		mIdx.LookupSize(lookupBh)
+		mIdx.LookupSize(lookupBh, encrypt)
 	}
 }
 
