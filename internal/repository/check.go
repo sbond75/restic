@@ -96,7 +96,7 @@ func checkPackInner(ctx context.Context, r *Repository, id restic.ID, blobs []re
 
 		it := newPackBlobIterator(id, newBufReader(bufRd), 0, blobs, r.Key(), dec)
 		for {
-			val, err := it.Next()
+			val, err := it.Next(encrypt)
 			if err == errPackEOF {
 				break
 			} else if err != nil {

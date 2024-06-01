@@ -251,6 +251,7 @@ func (r *Repository) LoadBlob(ctx context.Context, t restic.BlobType, id restic.
 }
 
 func (r *Repository) loadBlob(ctx context.Context, blobs []restic.PackedBlob, buf []byte) ([]byte, error) {
+	var encrypt bool = !r.opts.Unencrypted
 	var lastError error
 	for _, blob := range blobs {
 		debug.Log("blob %v found: %v", blob.BlobHandle, blob)
@@ -272,7 +273,7 @@ func (r *Repository) loadBlob(ctx context.Context, blobs []restic.PackedBlob, bu
 		}
 
 		it := newPackBlobIterator(blob.PackID, newByteReader(buf), uint(blob.Offset), []restic.Blob{blob.Blob}, r.key, r.getZstdDecoder())
-		pbv, err := it.Next()
+		pbv, err := it.Next(encrypt)
 
 		if err == nil {
 			err = pbv.Err
@@ -941,10 +942,11 @@ const maxUnusedRange = 1 * 1024 * 1024
 // then LoadBlobsFromPack will abort and not retry it. The buf passed to the callback is only valid within
 // this specific call. The callback must not keep a reference to buf.
 func (r *Repository) LoadBlobsFromPack(ctx context.Context, packID restic.ID, blobs []restic.Blob, handleBlobFn func(blob restic.BlobHandle, buf []byte, err error) error) error {
-	return streamPack(ctx, r.be.Load, r.LoadBlob, r.getZstdDecoder(), r.key, packID, blobs, handleBlobFn)
+	var encrypt bool = !r.opts.Unencrypted
+	return streamPack(ctx, r.be.Load, r.LoadBlob, r.getZstdDecoder(), r.key, packID, blobs, handleBlobFn, encrypt)
 }
 
-func streamPack(ctx context.Context, beLoad backendLoadFn, loadBlobFn loadBlobFn, dec *zstd.Decoder, key *crypto.Key, packID restic.ID, blobs []restic.Blob, handleBlobFn func(blob restic.BlobHandle, buf []byte, err error) error) error {
+func streamPack(ctx context.Context, beLoad backendLoadFn, loadBlobFn loadBlobFn, dec *zstd.Decoder, key *crypto.Key, packID restic.ID, blobs []restic.Blob, handleBlobFn func(blob restic.BlobHandle, buf []byte, err error) error, encrypt bool) error {
 	if len(blobs) == 0 {
 		// nothing to do
 		return nil
@@ -978,7 +980,7 @@ func streamPack(ctx context.Context, beLoad backendLoadFn, loadBlobFn loadBlobFn
 
 		if split {
 			// load everything up to the skipped file section
-			err := streamPackPart(ctx, beLoad, loadBlobFn, dec, key, packID, blobs[lowerIdx:i], handleBlobFn)
+			err := streamPackPart(ctx, beLoad, loadBlobFn, dec, key, packID, blobs[lowerIdx:i], handleBlobFn, encrypt)
 			if err != nil {
 				return err
 			}
@@ -987,10 +989,10 @@ func streamPack(ctx context.Context, beLoad backendLoadFn, loadBlobFn loadBlobFn
 		lastPos = blobs[i].Offset + blobs[i].Length
 	}
 	// load remainder
-	return streamPackPart(ctx, beLoad, loadBlobFn, dec, key, packID, blobs[lowerIdx:], handleBlobFn)
+	return streamPackPart(ctx, beLoad, loadBlobFn, dec, key, packID, blobs[lowerIdx:], handleBlobFn, encrypt)
 }
 
-func streamPackPart(ctx context.Context, beLoad backendLoadFn, loadBlobFn loadBlobFn, dec *zstd.Decoder, key *crypto.Key, packID restic.ID, blobs []restic.Blob, handleBlobFn func(blob restic.BlobHandle, buf []byte, err error) error) error {
+func streamPackPart(ctx context.Context, beLoad backendLoadFn, loadBlobFn loadBlobFn, dec *zstd.Decoder, key *crypto.Key, packID restic.ID, blobs []restic.Blob, handleBlobFn func(blob restic.BlobHandle, buf []byte, err error) error, encrypt bool) error {
 	h := backend.Handle{Type: restic.PackFile, Name: packID.String(), IsMetadata: blobs[0].Type.IsMetadata()}
 
 	dataStart := blobs[0].Offset
@@ -1025,7 +1027,7 @@ func streamPackPart(ctx context.Context, beLoad backendLoadFn, loadBlobFn loadBl
 	it := newPackBlobIterator(packID, newByteReader(data), dataStart, blobs, key, dec)
 
 	for {
-		val, err := it.Next()
+		val, err := it.Next(encrypt)
 		if err == errPackEOF {
 			break
 		} else if err != nil {
@@ -1124,7 +1126,7 @@ func newPackBlobIterator(packID restic.ID, rd discardReader, currentOffset uint,
 }
 
 // Next returns the next blob, an error or ErrPackEOF if all blobs were read
-func (b *packBlobIterator) Next() (packBlobValue, error) {
+func (b *packBlobIterator) Next(encrypt bool) (packBlobValue, error) {
 	if len(b.blobs) == 0 {
 		return packBlobValue{}, errPackEOF
 	}
@@ -1154,12 +1156,11 @@ func (b *packBlobIterator) Next() (packBlobValue, error) {
 
 	b.currentOffset = entry.Offset + entry.Length
 
-	if int(entry.Length) <= b.key.NonceSize() {
+	if encrypt && int(entry.Length) <= b.key.NonceSize() {
 		debug.Log("%v", b.blobs)
 		return packBlobValue{}, fmt.Errorf("invalid blob length %v", entry)
 	}
 
-	var encrypt bool = b.key != nil
 	var plaintext []byte
 	if encrypt {
 		// decryption errors are likely permanent, give the caller a chance to skip them
